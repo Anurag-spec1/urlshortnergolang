@@ -3,8 +3,10 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 )
 
@@ -49,7 +51,50 @@ return shortURL
 		return url,nil
 	}
 
+	func handler(w http.ResponseWriter,r*http.Request){
+		fmt.Fprintf(w,"Anurag's Territory")
+	}
+	
+	func shorturlhanndler(w http.ResponseWriter,r *http.Request){
+		var data struct{
+			URL string `json:"url"`
+		}
+		err:=json.NewDecoder(r.Body).Decode(&data)
+		if err!=nil{
+			http.Error(w,"Invalid request body",http.StatusBadRequest)
+			return
+		}
+		shortURL_:=createurl(data.URL)
+		// fmt.Fprintf(w,shortURL)
+		response:=struct{
+			ShortURL string `json:"short_url"`
+		}{ShortURL: shortURL_}
+
+		w.Header().Set("Content-Type","application/json")
+		json.NewEncoder(w).Encode(response)
+	}
+	
+
+	func redirecturlhandler(w http.ResponseWriter,r*http.Request){
+		id:=r.URL.Path[len("/redirect/"):]
+		url,err:=getURL(id)
+		if err !=nil{
+			http.Error(w,"Invalid request",http.StatusNotFound)
+		}
+		http.Redirect(w,r,url.OriginalURL,http.StatusFound)
+	}
+
 func main() {
-	OriginalURL := "https://github.com/Prince-1501/"
-	generateshorturl(OriginalURL)
+	// OriginalURL := "https://github.com/Prince-1501/"
+	// generateshorturl(OriginalURL)
+
+	http.HandleFunc("/",handler)
+	http.HandleFunc("/shorten",shorturlhanndler)
+	http.HandleFunc("/redirect/",redirecturlhandler)
+
+	fmt.Println("Server starting on 3000")
+	err:=http.ListenAndServe(":3000",nil)
+	if err!=nil{
+		fmt.Println("Error on starting server:",err)
+	}
 }
