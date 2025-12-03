@@ -1,4 +1,4 @@
-package handler  
+package main  
 
 import (
 	"crypto/md5"
@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -47,10 +48,10 @@ func getURL(id string) (URL, error) {
 	return url, nil
 }
 
-func Handler(w http.ResponseWriter, r *http.Request) {
+func handler(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/":
-		fmt.Fprintf(w, "Anurag's Territory")
+		fmt.Fprintf(w, "Anurag's URL Shortener")
 	case "/shorten":
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -91,4 +92,15 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Not Found", http.StatusNotFound)
 		}
 	}
+}
+
+func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	
+	http.HandleFunc("/", handler)
+	fmt.Printf("Server starting on port %s\n", port)
+	http.ListenAndServe(":"+port, nil)
 }
