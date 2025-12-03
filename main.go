@@ -1,4 +1,4 @@
-package main
+package handler  
 
 import (
 	"crypto/md5"
@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -91,17 +90,5 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, "Not Found", http.StatusNotFound)
 		}
-	}
-}
-
-func main() {
-	if os.Getenv("VERCEL") == "1" {
-		// Running on Vercel - do nothing
-		fmt.Println("Running on Vercel")
-	} else {
-		// Local development
-		http.HandleFunc("/", Handler)
-		fmt.Println("Local server running on :8080")
-		http.ListenAndServe(":8080", nil)
 	}
 }
