@@ -1,3 +1,4 @@
+// main.go
 package main
 
 import (
@@ -7,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -19,82 +21,109 @@ type URL struct {
 
 var urlDb = make(map[string]URL)
 
-func generateshorturl(OriginalURL string) string {
+func generateShortURL(originalURL string) string {
 	hasher := md5.New()
-	hasher.Write([]byte(OriginalURL))
-	fmt.Println("hasher: ", hasher)
+	hasher.Write([]byte(originalURL))
 	data := hasher.Sum(nil)
-	fmt.Println("hasher data: ", data)
 	hash := hex.EncodeToString(data)
-	fmt.Println("encode to string: ", hash)
-	fmt.Println("final string: ", hash[:8])
 	return hash[:8]
 }
 
-func createurl(originalURL string)string{
-	shortURL:=generateshorturl(originalURL)
-	id:=shortURL
-	urlDb[id]=URL{
-		ID   :         id,
-		OriginalURL  :originalURL,
-		ShortURL  :  shortURL,
-		CreationDate : time.Now(),
+func createURL(originalURL string) string {
+	shortURL := generateShortURL(originalURL)
+	id := shortURL
+	urlDb[id] = URL{
+		ID:           id,
+		OriginalURL:  originalURL,
+		ShortURL:     shortURL,
+		CreationDate: time.Now(),
+	}
+	return shortURL
 }
-return shortURL
+
+func getURL(id string) (URL, error) {
+	url, ok := urlDb[id]
+	if !ok {
+		return URL{}, errors.New("URL NOT FOUND")
+	}
+	return url, nil
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Anurag's Territory")
+}
+
+func shortURLHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
 
-	func getURL(id string)(URL,error){
-		url,ok:=urlDb[id]
-		if !ok{
-			return URL{},errors.New("URL NOT FOUND")
-		}
-		return url,nil
+	var data struct {
+		URL string `json:"url"`
 	}
-
-	func handler(w http.ResponseWriter,r*http.Request){
-		fmt.Fprintf(w,"Anurag's Territory")
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
 	}
 	
-	func shorturlhanndler(w http.ResponseWriter,r *http.Request){
-		var data struct{
-			URL string `json:"url"`
-		}
-		err:=json.NewDecoder(r.Body).Decode(&data)
-		if err!=nil{
-			http.Error(w,"Invalid request body",http.StatusBadRequest)
-			return
-		}
-		shortURL_:=createurl(data.URL)
-		// fmt.Fprintf(w,shortURL)
-		response:=struct{
-			ShortURL string `json:"short_url"`
-		}{ShortURL: shortURL_}
+	shortURL := createURL(data.URL)
+	response := struct {
+		ShortURL string `json:"short_url"`
+	}{ShortURL: shortURL}
 
-		w.Header().Set("Content-Type","application/json")
-		json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func redirectURLHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/redirect/"):]
+	if id == "" {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
 	}
 	
-
-	func redirecturlhandler(w http.ResponseWriter,r*http.Request){
-		id:=r.URL.Path[len("/redirect/"):]
-		url,err:=getURL(id)
-		if err !=nil{
-			http.Error(w,"Invalid request",http.StatusNotFound)
-		}
-		http.Redirect(w,r,url.OriginalURL,http.StatusFound)
+	url, err := getURL(id)
+	if err != nil {
+		http.Error(w, "URL not found", http.StatusNotFound)
+		return
 	}
+	http.Redirect(w, r, url.OriginalURL, http.StatusFound)
+}
 
 func main() {
-	// OriginalURL := "https://github.com/Prince-1501/"
-	// generateshorturl(OriginalURL)
+	// Check if running on Vercel
+	if os.Getenv("VERCEL") == "1" {
+		// For Vercel, we don't start the server manually
+		// It will use the Handler function exported below
+		fmt.Println("Running on Vercel")
+	} else {
+		// Local development
+		http.HandleFunc("/", handler)
+		http.HandleFunc("/shorten", shortURLHandler)
+		http.HandleFunc("/redirect/", redirectURLHandler)
+		
+		fmt.Println("Server starting on port 3000")
+		err := http.ListenAndServe(":3000", nil)
+		if err != nil {
+			fmt.Println("Error starting server:", err)
+		}
+	}
+}
 
-	http.HandleFunc("/",handler)
-	http.HandleFunc("/shorten",shorturlhanndler)
-	http.HandleFunc("/redirect/",redirecturlhandler)
-
-	fmt.Println("Server starting on 3000")
-	err:=http.ListenAndServe(":3000",nil)
-	if err!=nil{
-		fmt.Println("Error on starting server:",err)
+// Handler is exported for Vercel to use
+func Handler(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/":
+		handler(w, r)
+	case "/shorten":
+		shortURLHandler(w, r)
+	default:
+		if len(r.URL.Path) > 9 && r.URL.Path[:9] == "/redirect" {
+			redirectURLHandler(w, r)
+		} else {
+			http.Error(w, "Not Found", http.StatusNotFound)
+		}
 	}
 }
